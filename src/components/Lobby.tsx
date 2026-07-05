@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { auth } from '../lib/firebase';
 import { Room, GameMode } from '../types';
 import { Plus, Users, Play, Radio, Search, Settings, Trash, Edit2, X, Square, LogOut, BotIcon, Menu, User, ChevronDown } from 'lucide-react';
 import { socket } from '../lib/socket';
@@ -74,7 +73,9 @@ export const Lobby: React.FC<LobbyProps> = ({ onJoin, onChangeTank, userId, sele
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
-  const [profileName, setProfileName] = useState(auth.currentUser?.displayName || '');
+  const [profileName, setProfileName] = useState(() => {
+     try { return JSON.parse(localStorage.getItem('tankSelection') || '{}').name || 'PILOT'; } catch { return 'PILOT'; }
+  });
 
   const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
   const [editTimer, setEditTimer] = useState('');
@@ -620,10 +621,12 @@ export const Lobby: React.FC<LobbyProps> = ({ onJoin, onChangeTank, userId, sele
                           if (e.key === 'Enter') e.currentTarget.blur();
                        }}
                        onBlur={() => {
-                          if (profileName.trim() && auth.currentUser) {
-                              import('firebase/auth').then(({ updateProfile }) => {
-                                  updateProfile(auth.currentUser!, { displayName: profileName.trim().toUpperCase() }).catch(()=>{});
-                              });
+                          if (profileName.trim()) {
+                              try {
+                                  const sel = JSON.parse(localStorage.getItem('tankSelection') || '{}');
+                                  sel.name = profileName.trim().toUpperCase();
+                                  localStorage.setItem('tankSelection', JSON.stringify(sel));
+                              } catch(e) {}
                           }
                        }}
                        className="bg-slate-900 border border-slate-700 focus:border-emerald-500 outline-none rounded p-2 text-sm text-slate-200 font-bold"
@@ -631,16 +634,9 @@ export const Lobby: React.FC<LobbyProps> = ({ onJoin, onChangeTank, userId, sele
                  </div>
                  
                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-mono text-slate-400 uppercase">Email Address</label>
+                    <label className="text-[10px] font-mono text-slate-400 uppercase">Pilot ID</label>
                     <div className="bg-slate-900/50 border border-slate-700/50 rounded p-2 text-sm text-slate-300 font-mono">
-                      {auth.currentUser?.email || 'UNKNOWN'}
-                    </div>
-                 </div>
-
-                 <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-mono text-slate-400 uppercase">Registration Date</label>
-                    <div className="bg-slate-900/50 border border-slate-700/50 rounded p-2 text-sm text-slate-300 font-mono">
-                      {auth.currentUser?.metadata.creationTime ? new Date(auth.currentUser.metadata.creationTime).toLocaleDateString() : 'UNKNOWN'}
+                      {userId || 'UNKNOWN'}
                     </div>
                  </div>
               </div>

@@ -1,22 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  signInWithPopup,
-  GoogleAuthProvider, 
-  onAuthStateChanged,
-  User,
-  signOut
-} from 'firebase/auth';
-import { auth } from './lib/firebase';
 import { TankPicker } from './components/TankPicker';
 import { Lobby } from './components/Lobby';
 import { GameClient } from './game/GameClient';
 import { LogIn, Maximize } from 'lucide-react';
 import { Room } from './types';
 import { socket } from './lib/socket';
+import { nanoid } from 'nanoid';
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<{ uid: string, displayName?: string | null } | null>(null);
   const [joinedRoomId, setJoinedRoomId] = useState<string | null>(null);
   const [joinedRoom, setJoinedRoom] = useState<Room | null>(null);
   const [gameState, setGameState] = useState<'AUTH' | 'PICKER' | 'LOBBY'>('AUTH');
@@ -63,24 +56,17 @@ export default function App() {
   }, [selection]);
 
   useEffect(() => {
-    return onAuthStateChanged(auth, async (u) => {
-      if (u) {
-        setUser(u);
+    const checkAuth = async () => {
+      const storedUid = localStorage.getItem('localUid');
+      if (storedUid) {
+        setUser({ uid: storedUid, displayName: 'Pilot' });
         setIsAnalyzing(true);
         try {
-           // Wait a tiny bit for rooms to sync from socket
            await new Promise(r => setTimeout(r, 500));
            const savedRoomId = localStorage.getItem('joinedRoomId');
-           let foundRoomId = null;
-           
            if (savedRoomId) {
-              // we can't fully know unless rooms are populated, but we handle it via joinedRoomId
-              foundRoomId = savedRoomId;
-           }
-
-           if (foundRoomId) {
-              setJoinedRoomId(foundRoomId);
-              setGameState('LOBBY'); // Will transition to GAME if status === 'playing'
+              setJoinedRoomId(savedRoomId);
+              setGameState('LOBBY'); 
            } else {
               setJoinedRoomId(null);
               if (localStorage.getItem('tankSelection')) {
@@ -90,7 +76,6 @@ export default function App() {
               }
            }
         } catch (e) {
-           console.error("Failed to analyze active games", e);
            setGameState(localStorage.getItem('tankSelection') ? 'LOBBY' : 'PICKER');
         }
         setIsAnalyzing(false);
@@ -98,13 +83,16 @@ export default function App() {
         setGameState('AUTH');
         setIsAnalyzing(false);
       }
-    });
+    };
+    checkAuth();
   }, []);
 
   const login = async () => {
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const newUid = nanoid();
+      localStorage.setItem('localUid', newUid);
+      setUser({ uid: newUid, displayName: 'Pilot' });
+      setGameState(localStorage.getItem('tankSelection') ? 'LOBBY' : 'PICKER');
     } catch (e: any) {
       console.error("Login failed:", e);
     }
@@ -112,7 +100,7 @@ export default function App() {
 
   const logout = async () => {
     try {
-      await signOut(auth);
+      localStorage.removeItem('localUid');
       setUser(null);
       setGameState('AUTH');
     } catch (e) {
