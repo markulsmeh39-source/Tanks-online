@@ -1,0 +1,55 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+body, html, #root {
+  background-color: #05070a;
+  color: #f1f5f9;
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.pixel-grid {
+  background-image: radial-gradient(#1e293b 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.metal-panel {
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(51, 65, 85, 0.4);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+
+.hud-panel {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+}
+
+.text-glow {
+  text-shadow: 0 0 10px currentColor;
+}
+
+button {
+  cursor: pointer;
+}
+
+@keyframes glitch {
+  0% { transform: translate(0); }
+  20% { transform: translate(-2px, 2px); }
+  40% { transform: translate(-2px, -2px); }
+  60% { transform: translate(2px, 2px); }
+  80% { transform: translate(2px, -2px); }
+  100% { transform: translate(0); }
+}
+
+.glitch-hover:hover {
+  animation: glitch 0.3s infinite linear both;
+}

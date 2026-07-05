@@ -1,0 +1,157 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net (Pillar 1)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Common Primitives (Phase 3)
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Entity Validation Blueprints (Pillar 2) ---
+
+    function isValidRoom(data) {
+      return data.keys().hasAll(['status', 'name', 'hostId', 'createdAt', 'updatedAt'])
+          && data.keys().size() <= 12
+          && data.status is string
+          && (data.status == 'waiting' || data.status == 'playing' || data.status == 'finished' || data.status == 'inactive')
+          && data.name is string && data.name.size() <= 64
+          && data.hostId is string && data.hostId.size() <= 128
+          && data.createdAt is timestamp
+          && data.updatedAt is timestamp;
+    }
+
+    function isValidPlayerState(data) {
+      return data.keys().hasAll(['userId', 'name', 'x', 'y', 'rotation', 'health', 'updatedAt'])
+          && data.keys().size() <= 15
+          && data.userId is string && data.userId.size() <= 128
+          && data.name is string && data.name.size() <= 64
+          && data.x is number
+          && data.y is number
+          && data.rotation is number
+          && data.health is number && data.health >= -100 && data.health <= 500
+          && data.updatedAt is timestamp;
+    }
+
+    function isValidBullet(data) {
+      return data.keys().hasAll(['bulletId', 'playerId', 'x', 'y', 'vx', 'vy', 'createdAt'])
+          && data.keys().size() <= 8
+          && data.bulletId is string && data.bulletId.size() <= 128
+          && data.playerId is string && data.playerId.size() <= 128
+          && data.x is number
+          && data.y is number
+          && data.vx is number && data.vx >= -1000 && data.vx <= 1000
+          && data.vy is number && data.vy >= -1000 && data.vy <= 1000
+          && data.createdAt is timestamp;
+    }
+
+    function isValidMapObject(data) {
+      return data.keys().hasAll(['type', 'x', 'y', 'health'])
+          && data.keys().size() == 4
+          && data.type is string && data.type.size() <= 32
+          && data.x is number
+          && data.y is number
+          && data.health is number && data.health >= 0 && data.health <= 1000;
+    }
+
+    // --- Path Routes & Rules ---
+
+    match /rooms/{roomId} {
+      allow get: if isSignedIn() && isValidId(roomId);
+      allow list: if isSignedIn(); // Relational check on list is skipped since public lobby exists, but limited to signed in.
+
+      allow create: if isSignedIn() && isValidId(roomId)
+         && isValidRoom(incoming())
+         && incoming().createdAt == request.time
+         && incoming().updatedAt == request.time
+         && incoming().hostId == request.auth.uid;
+
+      allow update: if isSignedIn() && isValidId(roomId)
+         && isValidRoom(incoming())
+         && incoming().updatedAt == request.time
+         && incoming().createdAt == existing().createdAt
+         && incoming().hostId == existing().hostId
+         && (
+           // Only the host can modify general state
+           (existing().hostId == request.auth.uid) ||
+           // Anyone can join/leave players list
+           (incoming().diff(existing()).affectedKeys().hasOnly(['players']))
+         );
+
+      allow delete: if isSignedIn() && isValidId(roomId)
+         && existing().hostId == request.auth.uid;
+
+      match /players/{userId} {
+         allow get: if isSignedIn() && isValidId(roomId) && isValidId(userId);
+         allow list: if isSignedIn();
+
+         allow create: if isSignedIn() && isValidId(roomId) && isValidId(userId)
+            && userId == request.auth.uid
+            && isValidPlayerState(incoming())
+            && incoming().userId == request.auth.uid
+            && incoming().updatedAt == request.time;
+
+         allow update: if isSignedIn() && isValidId(roomId) && isValidId(userId)
+            && isValidPlayerState(incoming())
+            && incoming().updatedAt == request.time
+            && incoming().userId == existing().userId
+            && (
+               // Self updates
+               (userId == request.auth.uid) ||
+               // shooter-authority damage/score writes allowed by anyone in the same room
+               (incoming().diff(existing()).affectedKeys().hasAny(['health', 'score', 'lives', 'isAlive', 'lastAction']))
+            );
+
+         allow delete: if isSignedIn() && isValidId(roomId) && isValidId(userId)
+            && (userId == request.auth.uid || get(/databases/$(database)/documents/rooms/$(roomId)).data.hostId == request.auth.uid);
+      }
+
+      match /bullets/{bulletId} {
+         allow get, list: if isSignedIn() && isValidId(roomId);
+
+         allow create: if isSignedIn() && isValidId(roomId) && isValidId(bulletId)
+            && isValidBullet(incoming())
+            && incoming().playerId == request.auth.uid
+            && incoming().createdAt == request.time;
+
+         allow update: if false; // Bullets are immutable after fire
+
+         allow delete: if isSignedIn() && isValidId(roomId) && isValidId(bulletId)
+            && (existing().playerId == request.auth.uid || get(/databases/$(database)/documents/rooms/$(roomId)).data.hostId == request.auth.uid);
+      }
+
+      match /mapObjects/{objectId} {
+         allow get, list: if isSignedIn() && isValidId(roomId);
+
+         allow create: if isSignedIn() && isValidId(roomId) && isValidId(objectId)
+            && get(/databases/$(database)/documents/rooms/$(roomId)).data.hostId == request.auth.uid
+            && isValidMapObject(incoming());
+
+         allow update: if isSignedIn() && isValidId(roomId) && isValidId(objectId)
+            && isValidMapObject(incoming())
+            && incoming().type == existing().type
+            && incoming().x == existing().x
+            && incoming().y == existing().y;
+
+         allow delete: if isSignedIn() && isValidId(roomId) && isValidId(objectId)
+            && get(/databases/$(database)/documents/rooms/$(roomId)).data.hostId == request.auth.uid;
+      }
+    }
+  }
+}

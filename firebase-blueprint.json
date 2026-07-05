@@ -1,0 +1,83 @@
+{
+  "entities": {
+    "Room": {
+      "title": "Room",
+      "description": "A game session instance.",
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "enum": ["waiting", "playing", "finished"] },
+        "name": { "type": "string" },
+        "hostId": { "type": "string" },
+        "mapData": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["status", "name", "hostId", "createdAt", "updatedAt"]
+    },
+    "PlayerState": {
+      "title": "Player State",
+      "description": "Real-time state of a player in a room.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "rotation": { "type": "number" },
+        "health": { "type": "number" },
+        "score": { "type": "number" },
+        "color": { "type": "string" },
+        "tankType": { "type": "string" },
+        "isAlive": { "type": "boolean" },
+        "lastAction": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "x", "y", "rotation", "health", "updatedAt"]
+    },
+    "Bullet": {
+      "title": "Bullet",
+      "description": "A synchronized bullet event.",
+      "type": "object",
+      "properties": {
+        "bulletId": { "type": "string" },
+        "playerId": { "type": "string" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "vx": { "type": "number" },
+        "vy": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["bulletId", "playerId", "x", "y", "vx", "vy", "createdAt"]
+    },
+    "MapObject": {
+      "title": "Map Object",
+      "description": "Destructible wall or obstacle data.",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "health": { "type": "number" }
+      },
+      "required": ["type", "x", "y", "health"]
+    }
+  },
+  "firestore": {
+    "rooms/{roomId}": {
+      "schema": "Room",
+      "description": "Active game rooms."
+    },
+    "rooms/{roomId}/players/{userId}": {
+      "schema": "PlayerState",
+      "description": "Individual player states within a room."
+    },
+    "rooms/{roomId}/bullets/{bulletId}": {
+      "schema": "Bullet",
+      "description": "Bullet events for synchronization."
+    },
+    "rooms/{roomId}/mapObjects/{objectId}": {
+      "schema": "MapObject",
+      "description": "Synchronized map objects (destructible walls)."
+    }
+  }
+}
