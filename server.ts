@@ -3,12 +3,32 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import http from "http";
 import { Server } from "socket.io";
+import { initializeApp } from "firebase/app";
+import { getFirestore, collection, getDocs, setDoc, doc, deleteDoc } from "firebase/firestore";
+import { getAuth, signInAnonymously } from "firebase/auth";
 import fs from "fs";
 
+const firebaseConfig = {
+  projectId: "gen-lang-client-0222552115",
+  apiKey: "AIzaSyA7XqBignqgJ_BLW-sog9PioHKgtPrf0mw",
+  authDomain: "gen-lang-client-0222552115.firebaseapp.com",
+};
+const app = initializeApp(firebaseConfig);
+const DB_ID = "ai-studio-remixsteelvangua-7e7c1b6e-824c-4da2-8b91-c70b700e1187";
+// In modular client SDK we can initialize firestore with a specific database ID.
+const auth = getAuth(app);
+const dbInstance = getFirestore(app, DB_ID);
+
 async function startServer() {
+  try {
+    await signInAnonymously(auth);
+    console.log("Server auth ready");
+  } catch(e) {
+    console.error("Server auth failed", e);
+  }
   const app = express();
   const server = http.createServer(app);
-  const PORT = process.env.PORT || 3000;
+  const PORT = 3000;
 
   const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST"] }
@@ -16,6 +36,29 @@ async function startServer() {
 
   const roomsDB = new Map<string, any>();
   const rooms = new Map<string, Map<string, any>>();
+  
+  await new Promise<void>((resolve) => {
+    const unsub = auth.onAuthStateChanged((user) => {
+      if (user) {
+        unsub();
+        resolve();
+      }
+    });
+  });
+
+  try {
+    const snapshot = await getDocs(collection(dbInstance, 'rooms'));
+    snapshot.forEach(d => {
+       roomsDB.set(d.id, d.data());
+    });
+  } catch (e) {
+    console.error('Failed to load rooms from Firestore:', e);
+  }
+
+  function saveRoomsDB() {
+    // We don't save all rooms at once to Firestore here, it's too heavy.
+    // Instead we update individual documents.
+  }
 
   function broadcastRooms() {
     const list = Array.from(roomsDB.values());
@@ -28,10 +71,13 @@ async function startServer() {
 
     socket.emit("rooms_update", Array.from(roomsDB.values()));
 
+    const getDB = () => dbInstance;
+
     socket.on("create_room", (roomData) => {
       roomsDB.set(roomData.id, roomData);
       rooms.set(roomData.id, new Map());
       broadcastRooms();
+      setDoc(doc(getDB(), 'rooms', roomData.id), roomData).catch(()=>{});
     });
 
     socket.on("update_room", (updateData) => {
@@ -41,6 +87,7 @@ async function startServer() {
          Object.assign(existing, updateData);
          roomsDB.set(updateData.id, existing);
          broadcastRooms();
+         setDoc(doc(getDB(), 'rooms', updateData.id), existing).catch(()=>{});
       }
     });
 
@@ -49,6 +96,7 @@ async function startServer() {
       rooms.delete(id);
       broadcastRooms();
       io.to(id).emit("room_deleted");
+      deleteDoc(doc(getDB(), 'rooms', id)).catch(()=>{});
     });
 
     socket.on("join_room_lobby", ({ roomId, userId }) => {
