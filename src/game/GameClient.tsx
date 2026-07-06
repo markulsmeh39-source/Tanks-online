@@ -614,8 +614,8 @@ export function GameClient({ room, user, selection, onExit }: GameClientProps) {
     };
     
     const onTouchStart = (e: TouchEvent) => {
-       e.preventDefault();
        if (!canControl()) return;
+       e.preventDefault();
        for (let i = 0; i < e.changedTouches.length; i++) {
           const t = e.changedTouches[i];
           const rect = canvas.getBoundingClientRect();
@@ -825,6 +825,16 @@ export function GameClient({ room, user, selection, onExit }: GameClientProps) {
           }
           
           let shouldEnd = false;
+          let actualHumansConnected = state.current.localPlayer ? 1 : 0;
+          state.current.remotePlayers.forEach(p => {
+              if (!(p as any).isBot) actualHumansConnected++;
+          });
+
+          if (!room.isBotMode && actualHumansConnected < 2) {
+              handleReturnToLobby();
+              return;
+          }
+
           // Only end if we ever had a valid multiplayer session going (at least 2 players)
           if (state.current.maxTotalCount >= 2) {
              if (room.gameMode === 'DUO') {

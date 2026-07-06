@@ -159,7 +159,6 @@ export default function App() {
       setLeftMatchId(joinedRoom.matchId);
       localStorage.setItem('leftMatchId', joinedRoom.matchId);
     }
-    handleLeaveRoom(); // Always leave room fully
   };
 
   const isGameActive = joinedRoom && joinedRoom.status === 'playing' && joinedRoom.matchId !== leftMatchId;
