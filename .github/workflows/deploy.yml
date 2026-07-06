@@ -31,6 +31,8 @@ jobs:
         run: npm ci || npm install
       - name: Build
         run: npm run build
+        env:
+          VITE_SERVER_URL: https://ais-pre-ppybn2vjeqm7czxdgqgnbm-537493505293.europe-west1.run.app
       - name: Setup Pages
         uses: actions/configure-pages@v4
       - name: Upload artifact
